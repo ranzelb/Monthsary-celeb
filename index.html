@@ -2500,8 +2500,8 @@
 // ===================================================
 
 // ── SUPABASE CONFIG ── Add your project credentials here
-const SUPABASE_URL  = '';   // e.g. 'https://xxxx.supabase.co'
-const SUPABASE_ANON = '';   // your anon/public key
+const SUPABASE_URL  = 'https://kviwwjpstnmxjmdwmvmr.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2aXd3anBzdG5teGptZHdtdm1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MzE4NzAsImV4cCI6MjA5NjMwNzg3MH0.i_cnnP33P-AqNhQDcAKEEoqV4GzYr73jT3vJDa8KSLY';
 
 const CONFIG = {
   PIN: '6726',            // ← Change to your monthsary date PIN (e.g. '0430' for April 30)
@@ -2854,8 +2854,8 @@ let _sb = null;
 
 function sb() {
   if (_sb) return _sb;
-const SUPABASE_URL  = 'https://kviwwjpstnmxjmdwmvmr.supabase.co'
-const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2aXd3anBzdG5teGptZHdtdm1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3MzE4NzAsImV4cCI6MjA5NjMwNzg3MH0.i_cnnP33P-AqNhQDcAKEEoqV4GzYr73jT3vJDa8KSLY'
+  if (!SUPABASE_URL || !SUPABASE_ANON ||
+      SUPABASE_URL === '' || SUPABASE_ANON === '') {
     return null;
   }
   try {
