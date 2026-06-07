@@ -34,6 +34,7 @@
     overflow: hidden;
     min-height: 100vh;
     width: 100vw;
+    height: 100vh;
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E🌸%3C/text%3E%3C/svg%3E") 16 16, auto;
   }
 
@@ -54,16 +55,16 @@
     z-index: 10;
   }
   .screen.active { display: flex; }
-  /* Main screen scrolls — override fixed */
+  /* Main screen fills viewport, column flex so header + content-area stack */
   #main-screen {
     position: fixed !important;
     inset: 0 !important;
     display: none;
     flex-direction: column;
     overflow: hidden;
+    height: 100vh;
   }
   #main-screen.active { display: flex; }
-  /* Allow main screen tabs to scroll naturally */
 
   /* ===== PIN SCREEN ===== */
   #pin-screen {
@@ -867,6 +868,7 @@
   #main-screen {
     flex-direction: column;
     overflow: hidden;
+    height: 100vh;
     background: linear-gradient(145deg, #fff5f9 0%, #ffe0ee 25%, #ffd6e7 50%, #ffebf3 75%, #fff5f9 100%);
   }
 
@@ -941,43 +943,46 @@
     transform: translateY(-1px);
   }
 
-  /* Content area */
+  /* Content area — fills all remaining height after header */
   .content-area {
-    flex: 1;
-    position: relative;
+    flex: 1 1 0;
     min-height: 0;
+    position: relative;
     overflow: hidden;
   }
 
+  /* Each tab fills the content-area and scrolls independently */
   .tab-content {
     position: absolute;
-    inset: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     display: none;
     opacity: 0;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.4s ease;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
+    height: 100%;
   }
   .tab-content.active {
-    display: flex;
-    flex-direction: column;
+    display: block;
     opacity: 1;
   }
 
-  /* Give monthsary & bouquet tabs enough bottom padding to scroll fully */
-  #tab-monthsary { padding-bottom: 80px !important; }
-  #tab-bouquet   { padding-bottom: 80px !important; }
+  /* Monthsary & bouquet: center content with padding */
+  #tab-monthsary {
+    padding-bottom: 80px;
+  }
+  #tab-bouquet {
+    padding-bottom: 80px;
+  }
 
   /* ===== TAB 1 - MONTHSARY ===== */
   #tab-monthsary {
-    align-items: center;
-    justify-content: flex-start;
-    padding: 25px 20px 120px;
+    padding: 25px 20px 80px;
     position: relative;
     overflow-y: auto;
     overflow-x: hidden;
+    text-align: center;
     background:
       radial-gradient(ellipse at 20% 0%, rgba(255,182,193,0.35) 0%, transparent 55%),
       radial-gradient(ellipse at 80% 100%, rgba(255,133,173,0.2) 0%, transparent 55%),
@@ -1115,9 +1120,8 @@
 
   /* ===== TAB 2 - BOUQUET ===== */
   #tab-bouquet {
-    align-items: center;
-    justify-content: flex-start;
-    padding: 20px 20px 120px;
+    text-align: center;
+    padding: 20px 20px 80px;
     position: relative;
     overflow-y: auto;
     overflow-x: hidden;
@@ -1322,30 +1326,10 @@
     position: relative;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 0;
+    padding: 0 0 120px;
     -webkit-overflow-scrolling: touch;
-    display: flex;
-    flex-direction: column;
   }
 
-  /* Museum wall/floor/ceiling — fixed to viewport within tab */
-  .museum-floor {
-    position: sticky;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    width: 100%;
-    height: 80px;
-    background: repeating-linear-gradient(
-      90deg,
-      #5c2d3e 0px, #4a2232 40px,
-      #3d1a28 40px, #5c2d3e 80px
-    );
-    box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
-    z-index: 2;
-    flex-shrink: 0;
-    margin-top: auto;
-  }
   .museum-ceiling {
     position: sticky;
     top: 0;
@@ -1355,20 +1339,17 @@
     height: 60px;
     background: linear-gradient(180deg, #0f0508, #1a0812);
     z-index: 4;
-    flex-shrink: 0;
   }
   .museum-wall {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: linear-gradient(180deg, #2d1020 0%, #3d1520 50%, #2d1020 100%);
     z-index: 0;
     pointer-events: none;
   }
-  .wall-trim-top, .wall-trim-bottom {
-    display: none; /* replaced by sticky ceiling/floor */
+  .wall-trim-top, .wall-trim-bottom { display: none; }
+  .museum-floor {
+    display: none;
   }
 
   /* ── Gallery scroll wrapper ── */
