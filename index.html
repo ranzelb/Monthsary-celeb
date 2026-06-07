@@ -31,7 +31,7 @@
   body {
     font-family: 'Cormorant Garamond', serif;
     background: var(--pink-ultra-light);
-    overflow: auto;
+    overflow: hidden;
     min-height: 100vh;
     width: 100vw;
     cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='24' font-size='24'%3E🌸%3C/text%3E%3C/svg%3E") 16 16, auto;
@@ -944,12 +944,9 @@
   /* Content area */
   .content-area {
     flex: 1;
-    overflow: hidden;
     position: relative;
     min-height: 0;
-    /* Ensure inner scroll works on all browsers */
-    display: flex;
-    flex-direction: column;
+    overflow: hidden;
   }
 
   .tab-content {
@@ -962,13 +959,16 @@
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
-    padding-bottom: 60px; /* ensure content clears the sync bar */
   }
   .tab-content.active {
     display: flex;
     flex-direction: column;
     opacity: 1;
   }
+
+  /* Give monthsary & bouquet tabs enough bottom padding to scroll fully */
+  #tab-monthsary { padding-bottom: 80px !important; }
+  #tab-bouquet   { padding-bottom: 80px !important; }
 
   /* ===== TAB 1 - MONTHSARY ===== */
   #tab-monthsary {
@@ -1202,8 +1202,8 @@
 
   .bouquet-image-wrapper img {
     display: block;
-    max-width: min(380px, 80vw);
-    max-height: 50vh;
+    max-width: min(400px, 85vw);
+    max-height: 60vh;
     width: auto;
     height: auto;
     object-fit: contain;
@@ -2978,71 +2978,75 @@ async function loadGalleryFromSupabase() {
 async function uploadToSupabase(index, file) {
   const client = sb();
   if (!client) {
-    console.warn('Supabase client not initialized — check SUPABASE_URL and SUPABASE_ANON');
+    console.warn('[Upload] No Supabase client — credentials missing');
     return null;
   }
 
   setSyncStatus('syncing', '⏳ Uploading…');
 
-  // Sanitise filename and build storage path
-  const ext      = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const safeName = 'frame-' + index + '-' + Date.now() + '.' + ext;
+  try {
+    // Build a safe file path
+    const ext      = file.name.includes('.') ? file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g,'') : 'jpg';
+    const safeName = 'frame-' + index + '-' + Date.now() + '.' + ext;
+    console.log('[Upload] uploading', safeName, 'size=', file.size, 'type=', file.type);
 
-  console.log('[Upload] Starting upload for frame', index, '→', safeName, '(size:', file.size, ')');
+    // Convert file to ArrayBuffer for most reliable upload
+    const arrayBuf = await file.arrayBuffer();
 
-  // 1. Upload to Storage bucket "gallery"
-  const { data: storageData, error: uploadErr } = await client.storage
-    .from('gallery')
-    .upload(safeName, file, {
-      upsert:      true,
-      contentType: file.type || 'image/jpeg',
-      cacheControl: '3600'
-    });
+    // 1. Upload to Storage
+    const { data: storageData, error: storageErr } = await client.storage
+      .from('gallery')
+      .upload(safeName, arrayBuf, {
+        contentType: file.type || 'image/jpeg',
+        upsert: true,
+        cacheControl: '31536000'
+      });
 
-  if (uploadErr) {
-    console.error('[Upload] Storage upload error:', uploadErr.message, uploadErr);
-    setSyncStatus('error', '✗ Upload failed');
+    if (storageErr) {
+      console.error('[Upload] Storage error:', storageErr.message, storageErr);
+      // Show the actual error so we can debug
+      showUploadToast('Storage error: ' + storageErr.message);
+      setSyncStatus('error', '✗ Storage error');
+      return null;
+    }
+
+    console.log('[Upload] Storage OK:', storageData);
+
+    // 2. Get public URL
+    const { data: urlData } = client.storage.from('gallery').getPublicUrl(safeName);
+    const publicUrl = urlData?.publicUrl;
+    if (!publicUrl) {
+      console.error('[Upload] No public URL returned');
+      setSyncStatus('error', '✗ URL error');
+      return null;
+    }
+    console.log('[Upload] Public URL:', publicUrl);
+
+    // 3. Save to DB
+    const { error: dbErr } = await client
+      .from('gallery_photos')
+      .upsert(
+        { frame_index: index, image_url: publicUrl, label: CONFIG.galleryLabels[index] },
+        { onConflict: 'frame_index' }
+      );
+
+    if (dbErr) {
+      console.error('[Upload] DB error:', dbErr.message, dbErr);
+      showUploadToast('DB error: ' + dbErr.message);
+      setSyncStatus('error', '✗ DB error');
+      return null;
+    }
+
+    console.log('[Upload] DB saved ✅');
+    setSyncStatus('connected', '☁ Synced');
+    return publicUrl;
+
+  } catch(err) {
+    console.error('[Upload] Unexpected error:', err);
+    showUploadToast('Error: ' + err.message);
+    setSyncStatus('error', '✗ Failed');
     return null;
   }
-
-  console.log('[Upload] Storage upload success:', storageData);
-
-  // 2. Get the permanent public URL (never expires)
-  const { data: urlData } = client.storage
-    .from('gallery')
-    .getPublicUrl(safeName);
-
-  const publicUrl = urlData && urlData.publicUrl;
-  if (!publicUrl) {
-    console.error('[Upload] Could not get public URL for', safeName);
-    setSyncStatus('error', '✗ URL error');
-    return null;
-  }
-
-  console.log('[Upload] Public URL:', publicUrl);
-
-  // 3. Upsert row in gallery_photos (frame_index is unique key)
-  const { data: dbData, error: dbErr } = await client
-    .from('gallery_photos')
-    .upsert(
-      {
-        frame_index: index,
-        image_url:   publicUrl,
-        label:       CONFIG.galleryLabels[index],
-        uploaded_at: new Date().toISOString()
-      },
-      { onConflict: 'frame_index' }
-    );
-
-  if (dbErr) {
-    console.error('[Upload] DB upsert error:', dbErr.message, dbErr);
-    setSyncStatus('error', '✗ Save failed');
-    return null;
-  }
-
-  console.log('[Upload] DB upsert success:', dbData);
-  setSyncStatus('connected', '☁ Synced');
-  return publicUrl;
 }
 
 // ─── Big Museum Curtain — opens to reveal all 7 frames at once ───────────────
@@ -3210,7 +3214,9 @@ function showUploadToast(msg) {
   if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2800);
+  // Show errors longer so user can read them
+  const duration = (msg.toLowerCase().includes('error') || msg.toLowerCase().includes('fail')) ? 6000 : 2800;
+  setTimeout(() => t.classList.remove('show'), duration);
 }
 
 // ===== MODAL =====
@@ -3532,12 +3538,54 @@ window.addEventListener('DOMContentLoaded', () => {
   buildGallery();
   setupBouquet();
 
+  // Run Supabase connection test
+  testSupabaseConnection();
+
   // 2. Fetch latest from Supabase DB (async — updates frames when done)
   loadGalleryFromSupabase().then(() => {
     // 3. Subscribe to realtime changes for cross-device live sync
     subscribeToGalleryChanges();
   });
 });
+
+// ─── Supabase self-test (runs on load, shows toast with result) ───────────────
+async function testSupabaseConnection() {
+  const client = sb();
+  if (!client) {
+    console.warn('[Supabase] No client — credentials empty');
+    return;
+  }
+
+  console.log('[Supabase] Testing connection to:', SUPABASE_URL);
+
+  // Test 1: Can we read from gallery_photos?
+  const { data: rows, error: readErr } = await client
+    .from('gallery_photos')
+    .select('id')
+    .limit(1);
+
+  if (readErr) {
+    console.error('[Supabase] DB read failed:', readErr.message);
+    setSyncStatus('error', '✗ DB error');
+    return;
+  }
+  console.log('[Supabase] DB read OK ✅ rows:', rows?.length ?? 0);
+
+  // Test 2: Can we list objects in storage bucket?
+  const { data: files, error: storageErr } = await client.storage
+    .from('gallery')
+    .list('', { limit: 1 });
+
+  if (storageErr) {
+    console.error('[Supabase] Storage list failed:', storageErr.message);
+    console.error('[Supabase] → Fix: Storage bucket "gallery" must be PUBLIC and have INSERT policy for anon');
+    setSyncStatus('error', '✗ Storage error');
+    showUploadToast('⚠️ Storage not accessible — check bucket is Public');
+    return;
+  }
+  console.log('[Supabase] Storage OK ✅ files:', files?.length ?? 0);
+  setSyncStatus('connected', '☁ Ready');
+}
 
 // Keyboard PIN support
 document.addEventListener('keydown', e => {
